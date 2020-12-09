@@ -181,7 +181,7 @@ while True:
                         message = "Viewing all the rooms:\n"
                         for room in room_list:
                             num_players = str(len(room_list[room].clients))
-                            message+= room + " has " + num_players + " player\n"
+                            message+= room + " has " + num_players + " client\n"
                         
                     else:
                         message = "No room to show"
