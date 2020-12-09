@@ -15,7 +15,7 @@ SWITCH = "$switch"
 USER_NAME = 'username:'
 admin_password = 123
 WELCOME_MESSAGE = "Hi, Plaese set your username:"
-instructions = f'*See the instruction: {MANUAL}\n *View all the rooms: {LIST}\n *To join a room: {JOIN} room_name\n *To create a new room: {CREATE} room_name\n *To switch room: {SWITCH} room_name\n *To switch room: {JOIN} room_name\n *To quit: {QUIT}\n '
+instructions = f'*See the instruction: {MANUAL}\n *View all the rooms: {LIST}\n *To join a room: {JOIN} room_name\n *To create a new room: {CREATE} room_name\n *To switch room: {SWITCH} room_name\n *To quit: {QUIT}\n '
 
 instructions = instructions.encode()
 room_list = {} 
