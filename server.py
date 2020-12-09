@@ -6,40 +6,45 @@ BUFFER_SIZE = 4096
 IP = socket.gethostbyname(socket.gethostname())
 PORT = 1234
 
-QUIT = '$quit'
+QUIT = '$q'
 JOIN = "$join"
 MANUAL = "$manual"
-LIST = "$list"
+LIST = "$rooms"
+CREATE = "$create"
+SWITCH = "$switch"
 USER_NAME = 'username:'
+admin_password = 123
 WELCOME_MESSAGE = "Hi, Plaese set your username:"
-instructions = f'*See the instruction: {MANUAL}\n *View all the rooms: {LIST}\n *To join/create a room: {JOIN} room_name\n *To switch room: {JOIN} room_name\n *To quit: {QUIT}\n '
+instructions = f'*See the instruction: {MANUAL}\n *View all the rooms: {LIST}\n *To join a room: {JOIN} room_name\n *To create a new room: {CREATE} room_name\n *To switch room: {SWITCH} room_name\n *To switch room: {JOIN} room_name\n *To quit: {QUIT}\n '
 
 instructions = instructions.encode()
 room_list = {} 
 playerName_RoomName = {} 
 
+userName_Socket = {}
 
-def handle_msg(player, msg):
+
+def handle_msg(client_sock, msg):
     
     command = msg.split()[0]
 
-    if JOIN == command:
+    if command == JOIN or command == SWITCH or command == CREATE:
         same_room = False
 
         if len(msg.split()) >= 2: # error check
             room_name = msg.split()[1:]
             room_name = ' '.join(room_name)
             # -- changing room
-            if player.name in playerName_RoomName:
+            if client_sock.name in playerName_RoomName:
                 # print(f'room player: {self.room_player_map}')
-                current_room = playerName_RoomName[player.name]
+                current_room = playerName_RoomName[client_sock.name]
                 if current_room == room_name:
-                    player.socket.sendall(b'You are already in room: ' + room_name.encode())
+                    client_sock.socket.sendall(('You are already in room: ' + room_name).encode())
                     same_room = True
                 # -- Before switich to a new room, remove the player from the old room.
                 else: # switch
                     old_room = current_room
-                    room_list[old_room].remove_player(player)
+                    room_list[old_room].exit_client(client_sock)
             # -- Switich room
             if not same_room:
                 # -- Create a new room if the room does not exist. Check if the same room exist or not
@@ -49,31 +54,32 @@ def handle_msg(player, msg):
                     room_list[room_name] = new_room
                 # -- now room exist i.e. either created or old room. 
                 # -- add the new player, send welcome message, add in room-player map
-                room_list[room_name].clients.append(player)
-                room_list[room_name].welcome_new(player)
-                playerName_RoomName[player.name] = room_name
+                room_list[room_name].clients.append(client_sock)
+                room_list[room_name].welcome_new(client_sock)
+                playerName_RoomName[client_sock.name] = room_name
         else:
-            player.socket.sendall(instructions)
+            client_sock.socket.sendall(instructions)
 
 
 
     else:
 
         # -- Player in a room, then broadcast the message to all players in the room
-        if player.name in playerName_RoomName:
-            room_list[playerName_RoomName[player.name]].broadcast(player, msg.encode())
+        if client_sock.name in playerName_RoomName:
+            room_list[playerName_RoomName[client_sock.name]].broadcast(client_sock, msg.encode())
         # -- Player is not in a room yet  
         else:
             msg = 'Please join/create a room \n' \
-                + 'Use $list to see available rooms! \n' \
-                + 'Use $join room name to join/create a room! \n'
-            player.socket.sendall(msg.encode())
+                + 'Use $rooms to see available rooms! \n' \
+                + 'Use $join room name to join a room! \n'
+            client_sock.socket.sendall(msg.encode())
 
-def remove_player(player):
-    if player.name in playerName_RoomName:
-        room_list[playerName_RoomName[player.name]].remove_player(player)
-        del playerName_RoomName[player.name]
-    print("Username " + player.name + " has left\n")
+def exit_client(client_sock):
+    if client_sock.name in playerName_RoomName:
+        room_list[playerName_RoomName[client_sock.name]].exit_client(client_sock)
+        del playerName_RoomName[client_sock.name]
+    print("Username " + client_sock.name + " has left\n")
+
 
 
 
@@ -93,20 +99,20 @@ class Room:
         self.clients = [] 
         self.name = name
 
-    def welcome_new(self, from_player):
-        msg = self.name + " welcomes: " + from_player.name + '\n'
-        for player in self.clients:
-            player.socket.sendall(msg.encode())
+    def welcome_new(self, client_sock):
+        msg = self.name + " welcomes: " + client_sock.name + '\n'
+        for cleint in self.clients:
+            cleint.socket.sendall(msg.encode())
     
-    def broadcast(self, from_player, msg):
-        msg = from_player.name.encode() + b":" + msg
-        for player in self.clients:
-            player.socket.sendall(msg)
+    def broadcast(self, client_sock, msg):
+        msg = client_sock.name.encode() + b":" + msg
+        for cleint in self.clients:
+            cleint.socket.sendall(msg)
 
-    def remove_player(self, player):
-        self.clients.remove(player)
-        leave_msg = player.name.encode() + b"has left the room\n"
-        self.broadcast(player, leave_msg)
+    def exit_client(self, cleint):
+        self.clients.remove(cleint)
+        leave_msg = cleint.name + " has left the room\n"
+        self.broadcast(cleint, leave_msg.encode())
 
 # Initialize the server socket
 server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -149,17 +155,25 @@ while True:
                 
                 if msg_command == QUIT:
                     current_socket.socket.sendall(QUIT.encode())
-                    remove_player(current_socket)
+                    exit_client(current_socket)
 
                 elif "username" in msg_command:
                     
                     USER_NAME = message.split()[1]
                     current_socket.name = USER_NAME
+
                     print(f'New guest {current_socket.name} joined')
                     current_socket.socket.sendall(instructions)
+                    userName_Socket[current_socket.name] = current_socket.socket
+                    # print(userName_Socket)
+                    
+                
+
 
                 elif msg_command == MANUAL:
                     current_socket.socket.sendall(instructions)
+
+
 
                 elif msg_command == LIST:
                     
@@ -176,7 +190,9 @@ while True:
     
                 else:
                     handle_msg(current_socket,message)
-                    
+
+
+
                     
             else:
                 current_socket.socket.close()
